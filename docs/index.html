@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>the-api-langs documentation</title>
+    <meta
+      name="description"
+      content="Documentation for using the-api-langs as a module in the-api applications with PostgreSQL dictionaries, language metadata, translated CRUD fields, and FAQ examples."
+    >
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <a class="brand-mark" href="#overview" aria-label="the-api-langs docs home">API</a>
+        <div>
+          <strong>the-api-langs</strong>
+          <span>Documentation</span>
+        </div>
+      </div>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
+        Menu
+      </button>
+
+      <div class="topbar-actions">
+        <span class="version-pill">v0.2.2</span>
+        <a class="quiet-link" href="../AGENTS.md">AGENTS.md</a>
+        <a class="quiet-link" href="../README.md">README.md</a>
+      </div>
+    </header>
+
+    <div class="docs-shell">
+      <aside class="sidebar" id="sidebar">
+        <label class="search-label" for="doc-search">Search docs</label>
+        <input id="doc-search" class="search-input" type="search" placeholder="Search _lang, dict, migrations..." autocomplete="off">
+        <nav class="side-nav" aria-label="Main documentation">
+          <a href="#overview">Overview</a>
+          <a href="#requirements">Requirements</a>
+          <a href="#install">Install</a>
+          <a href="#schema">Tables</a>
+          <a href="#quickstart">Quickstart</a>
+          <a href="#translation">Translation flow</a>
+          <a href="#routes">Routes</a>
+          <a href="#requests">Requests</a>
+          <a href="#queries">Query behavior</a>
+          <a href="#migrations">Migrations</a>
+          <a href="#faq">FAQ</a>
+          <a href="#maintenance">Maintenance</a>
+        </nav>
+      </aside>
+
+      <main id="main" class="content">
+        <section id="overview" class="hero" data-section>
+          <div class="hero-copy">
+            <p class="eyebrow">Multilingual CRUD fields</p>
+            <h1>Use language dictionaries in the-api applications</h1>
+            <p class="lead">
+              `the-api-langs` is a module for APIs built with `the-api`. It
+              contributes PostgreSQL migrations for `dict` and `languages`, then
+              `the-api` uses `_lang` and `translate` to return localized fields
+              from normal CRUD endpoints.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#quickstart">Start building</a>
+              <a class="button secondary" href="#faq">Read FAQ</a>
+            </div>
+          </div>
+
+          <div class="flow-panel" aria-label="the-api-langs request flow">
+            <div class="flow-step">
+              <span>1</span>
+              <strong>Module</strong>
+              <small>import `langs`</small>
+            </div>
+            <div class="flow-arrow">-&gt;</div>
+            <div class="flow-step">
+              <span>2</span>
+              <strong>Migrate</strong>
+              <small>`dict`, `languages`</small>
+            </div>
+            <div class="flow-arrow">-&gt;</div>
+            <div class="flow-step">
+              <span>3</span>
+              <strong>Configure</strong>
+              <small>`translate: ['name']`</small>
+            </div>
+            <div class="flow-arrow">-&gt;</div>
+            <div class="flow-step">
+              <span>4</span>
+              <strong>Query</strong>
+              <small>`?_lang=de`</small>
+            </div>
+          </div>
+        </section>
+
+        <section id="requirements" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Before you start</p>
+            <h2>Requirements</h2>
+          </div>
+          <div class="check-grid">
+            <div class="check-item">
+              <strong>Node.js or Bun</strong>
+              <p>Use Node.js 18+ or Bun 1+.</p>
+            </div>
+            <div class="check-item">
+              <strong>`the-api` installed</strong>
+              <p>The host application runs on `the-api`.</p>
+            </div>
+            <div class="check-item">
+              <strong>`the-api-langs` installed</strong>
+              <p>The module provides shared language migrations.</p>
+            </div>
+            <div class="check-item">
+              <strong>PostgreSQL tables</strong>
+              <p>Create app tables and include `langs` so its migrations run.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="install" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Install</p>
+            <h2>Package and environment</h2>
+          </div>
+          <div class="two-column">
+            <div>
+              <h3>Install packages</h3>
+              <pre><code class="language-bash">bun add the-api the-api-langs
+
+npm install the-api the-api-langs</code></pre>
+            </div>
+            <div>
+              <h3>Minimal `.env`</h3>
+              <pre><code class="language-env">PORT=7788
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_DATABASE=postgres</code></pre>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>`langs` is migration-only.</strong>
+            It does not expose HTTP routes by itself. Add CRUD routes for
+            `dict` or `languages` when an app needs them.
+          </div>
+        </section>
+
+        <section id="schema" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Database</p>
+            <h2>Tables used in examples</h2>
+          </div>
+          <p>
+            `the-api-langs` creates `dict` and `languages`. Your application
+            owns tables such as `testNews`.
+          </p>
+          <pre><code class="language-sql">CREATE TABLE IF NOT EXISTS "dict" (
+  "id" SERIAL PRIMARY KEY,
+  "textKey" INTEGER NOT NULL,
+  "lang" VARCHAR(2) NOT NULL,
+  "text" VARCHAR(4096) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS dict_lang_text_key_idx
+  ON "dict" ("lang", "textKey");
+
+CREATE TABLE IF NOT EXISTS "languages" (
+  "id" SERIAL PRIMARY KEY,
+  "timeCreated" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "timeUpdated" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "code" VARCHAR(2) NOT NULL,
+  "nativeName" VARCHAR(128) NOT NULL,
+  "englishName" VARCHAR(128) NOT NULL,
+  "textDirection" VARCHAR(3) NOT NULL DEFAULT 'ltr',
+  "isActive" BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS languages_code_idx
+  ON "languages" ("code");
+
+CREATE TABLE IF NOT EXISTS "testNews" (
+  "id" SERIAL PRIMARY KEY,
+  "timeCreated" TIMESTAMP NOT NULL DEFAULT now(),
+  "timeUpdated" TIMESTAMP NULL,
+  "timeDeleted" TIMESTAMP NULL,
+  "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+  "name" VARCHAR(4096) NOT NULL,
+  "slug" VARCHAR(256) NULL,
+  "body" TEXT NULL
+);</code></pre>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Table</th><th>Owner</th><th>Purpose</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>dict</code></td><td><code>the-api-langs</code></td><td>Stores source and translated text grouped by <code>textKey</code>.</td></tr>
+                <tr><td><code>languages</code></td><td><code>the-api-langs</code></td><td>Stores language metadata such as names, direction, and active flag.</td></tr>
+                <tr><td><code>testNews</code></td><td>Application</td><td>Example CRUD table with a translated <code>name</code> field.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="quickstart" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Quickstart</p>
+            <h2>Build a translated API</h2>
+          </div>
+          <pre><code class="language-ts">import { Routings, TheAPI, middlewares } from 'the-api';
+import { langs } from 'the-api-langs';
+
+const router = new Routings({ migrationDirs: ['./migrations'] });
+
+router.crud({
+  table: 'dict',
+  prefix: 'langs',
+});
+
+router.crud({
+  table: 'testNews',
+  translate: ['name'],
+  searchFields: ['name'],
+});
+
+const theAPI = new TheAPI({
+  routings: [middlewares.common, langs, router],
+});
+
+await theAPI.up();</code></pre>
+          <div class="request-response">
+            <div>
+              <h3>Request</h3>
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews?_fields=id,name&amp;_lang=de'</code></pre>
+            </div>
+            <div>
+              <h3>Response</h3>
+              <pre><code class="language-json">{
+  "result": [
+    { "id": 1, "name": "Hallo Welt" },
+    { "id": 2, "name": "Oeffentliche API" }
+  ],
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="translation" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">How it works</p>
+            <h2>Translation flow</h2>
+          </div>
+          <p>
+            Store canonical English text in the application table. Store every
+            localized value in `dict` with the same `textKey`.
+          </p>
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist" aria-label="Translation examples">
+              <button type="button" role="tab" aria-selected="true" data-tab="flow-seed">Seed data</button>
+              <button type="button" role="tab" aria-selected="false" data-tab="flow-read">Read localized</button>
+              <button type="button" role="tab" aria-selected="false" data-tab="flow-search">Search localized</button>
+            </div>
+            <div class="tab-panel is-active" id="flow-seed">
+              <pre><code class="language-sql">INSERT INTO "dict" ("textKey", "lang", "text")
+VALUES
+  (1001, 'en', 'Hello world'),
+  (1001, 'de', 'Hallo Welt'),
+  (1001, 'es', 'Hola mundo')
+ON CONFLICT ("lang", "textKey") DO UPDATE
+SET "text" = EXCLUDED."text";
+
+INSERT INTO "testNews" ("name", "slug")
+VALUES ('Hello world', 'hello-world');</code></pre>
+            </div>
+            <div class="tab-panel" id="flow-read">
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews/1?_fields=id,name,slug&amp;_lang=es'</code></pre>
+              <pre><code class="language-json">{
+  "result": {
+    "id": 1,
+    "name": "Hola mundo",
+    "slug": "hello-world"
+  },
+  "error": false
+}</code></pre>
+            </div>
+            <div class="tab-panel" id="flow-search">
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews?_fields=id,name&amp;_lang=es&amp;_search=Hola'</code></pre>
+              <pre><code class="language-json">{
+  "result": [
+    { "id": 1, "name": "Hola mundo" }
+  ],
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>The English row is the lookup bridge.</strong>
+            `the-api` finds the `textKey` by matching the application field to
+            the English `dict` row, then returns the requested language row.
+          </div>
+        </section>
+
+        <section id="routes" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Routes</p>
+            <h2>CRUD endpoints you may expose</h2>
+          </div>
+          <div class="endpoint-list">
+            <div class="endpoint"><span class="method get">GET</span><code>/testNews</code><p>List app rows with translated fields.</p></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/testNews/:id</code><p>Read one app row with translated fields.</p></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/langs</code><p>Create a dictionary record when `dict` uses `prefix: 'langs'`.</p></div>
+            <div class="endpoint"><span class="method patch">PATCH</span><code>/langs/:id</code><p>Update one dictionary record.</p></div>
+            <div class="endpoint"><span class="method delete">DELETE</span><code>/langs/:id</code><p>Delete one dictionary record.</p></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/languages</code><p>List language metadata if exposed by the app.</p></div>
+          </div>
+          <p class="note">
+            Keep public reads open or protected according to the application.
+            Production systems usually protect dictionary writes.
+          </p>
+        </section>
+
+        <section id="requests" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Examples</p>
+            <h2>Common request and response pairs</h2>
+          </div>
+          <div class="request-response">
+            <div>
+              <h3>Create a dictionary row</h3>
+              <pre><code class="language-bash">curl -X POST 'http://localhost:7788/langs' \
+  -H 'Content-Type: application/json' \
+  -d '{"textKey":1003,"lang":"de","text":"Einstellungen"}'</code></pre>
+            </div>
+            <div>
+              <h3>Response</h3>
+              <pre><code class="language-json">{
+  "result": {
+    "id": 8,
+    "textKey": 1003,
+    "lang": "de",
+    "text": "Einstellungen"
+  },
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+          <div class="request-response">
+            <div>
+              <h3>Filter by translated text</h3>
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews?_fields=id,name&amp;_lang=de&amp;name=Hallo%20Welt'</code></pre>
+            </div>
+            <div>
+              <h3>Response</h3>
+              <pre><code class="language-json">{
+  "result": [
+    { "id": 1, "name": "Hallo Welt" }
+  ],
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="queries" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Query language</p>
+            <h2>`_lang` with normal the-api queries</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Parameter</th><th>Meaning</th><th>Example</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>_lang</code></td><td>Translate configured fields.</td><td><code>_lang=de</code></td></tr>
+                <tr><td><code>_fields</code></td><td>Select response fields.</td><td><code>_fields=id,name</code></td></tr>
+                <tr><td><code>_search</code></td><td>Search configured `searchFields`.</td><td><code>_search=Hallo</code></td></tr>
+                <tr><td><code>_sort</code></td><td>Sort fields; `-field` means descending.</td><td><code>_sort=-id</code></td></tr>
+                <tr><td><code>_limit</code>, <code>_page</code>, <code>_skip</code></td><td>Paginate result lists.</td><td><code>_limit=20&amp;_page=2</code></td></tr>
+                <tr><td><code>name=value</code></td><td>Filter by source text or translated text, depending on `_lang`.</td><td><code>name=Hallo%20Welt</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">
+            <strong>Filtering follows the selected language.</strong>
+            With `_lang=de`, `name=Hello%20world` does not match the translated
+            `name`; use `name=Hallo%20Welt` or omit `_lang`.
+          </div>
+        </section>
+
+        <section id="migrations" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Lifecycle</p>
+            <h2>Migration behavior</h2>
+          </div>
+          <p>
+            `TheAPI` collects `migrationDirs` from every `Routings` instance in
+            `routings`. Include `langs` and the language migrations are part of
+            startup.
+          </p>
+          <pre><code class="language-ts">const theAPI = new TheAPI({
+  routings: [middlewares.common, langs, router],
+});</code></pre>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Migration</th><th>Purpose</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>20240525132746_init_langs.js</code></td><td>Creates the old <code>langs</code> table.</td></tr>
+                <tr><td><code>20260427193323_add_languages.js</code></td><td>Creates <code>languages</code>.</td></tr>
+                <tr><td><code>20260427211407_rename_langs_to_dict.js</code></td><td>Renames <code>langs</code> to <code>dict</code> and renames indexes.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="faq" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">FAQ</p>
+            <h2>Questions with request-answer examples</h2>
+          </div>
+          <h3>Does `langs` create routes?</h3>
+          <div class="request-response">
+            <div>
+              <pre><code class="language-ts">import { langs } from 'the-api-langs';
+
+const theAPI = new TheAPI({ routings: [langs] });</code></pre>
+            </div>
+            <div>
+              <pre><code class="language-text">No. It registers migrations only. Add CRUD routes for
+`dict` if the app needs `/langs` endpoints.</code></pre>
+            </div>
+          </div>
+
+          <h3>How do I read the original English text?</h3>
+          <div class="request-response">
+            <div>
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews/1?_fields=id,name&amp;_lang=en'</code></pre>
+            </div>
+            <div>
+              <pre><code class="language-json">{
+  "result": {
+    "id": 1,
+    "name": "Hello world"
+  },
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+
+          <h3>Can I use `en-US`?</h3>
+          <div class="request-response">
+            <div>
+              <pre><code class="language-sql">INSERT INTO "dict" ("textKey", "lang", "text")
+VALUES (1001, 'en-US', 'Hello world');</code></pre>
+            </div>
+            <div>
+              <pre><code class="language-text">No with the current schema. `dict.lang` and
+`languages.code` are VARCHAR(2). Use two-character codes
+or add an application migration that changes the schema.</code></pre>
+            </div>
+          </div>
+
+          <h3>What happens if a translation is missing?</h3>
+          <div class="request-response">
+            <div>
+              <pre><code class="language-bash">curl 'http://localhost:7788/testNews/1?_fields=id,name&amp;_lang=fr'</code></pre>
+            </div>
+            <div>
+              <pre><code class="language-json">{
+  "result": {
+    "id": 1,
+    "name": "Hello world"
+  },
+  "error": false
+}</code></pre>
+            </div>
+          </div>
+
+          <h3>Should I use `dict` or `langs`?</h3>
+          <div class="request-response">
+            <div>
+              <pre><code class="language-ts">router.crud({ table: 'dict', prefix: 'langs' });</code></pre>
+            </div>
+            <div>
+              <pre><code class="language-text">Use `dict` as the database table. Use `prefix: 'langs'`
+only when you want the public HTTP path to be `/langs`.</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="maintenance" class="doc-section" data-section>
+          <div class="section-heading">
+            <p class="eyebrow">Project work</p>
+            <h2>Maintenance checklist</h2>
+          </div>
+          <div class="check-grid">
+            <div class="check-item">
+              <strong>Keep docs in sync</strong>
+              <p>Update `AGENTS.md`, `README.md`, and `docs/` when behavior changes.</p>
+            </div>
+            <div class="check-item">
+              <strong>Respect public API</strong>
+              <p>`src/index.ts` exports `langs`; keep imports stable.</p>
+            </div>
+            <div class="check-item">
+              <strong>Protect migrations</strong>
+              <p>`src/migrations` is the database contract for apps.</p>
+            </div>
+            <div class="check-item">
+              <strong>Build from source</strong>
+              <p>Change `src`, then run `bun run build`; do not hand-edit `dist`.</p>
+            </div>
+          </div>
+          <pre><code class="language-bash">bun run build
+
+cd ../the-api
+bun test tests/langs.spec.ts</code></pre>
+        </section>
+      </main>
+
+      <aside class="toc" aria-label="On this page">
+        <p>On this page</p>
+        <nav id="toc-links"></nav>
+      </aside>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
